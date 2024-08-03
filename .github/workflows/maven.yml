@@ -1,0 +1,42 @@
+name: Java CI with Maven
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+    - name: Build with Maven
+      run: cd web-chat && mvn clean install
+      
+    - name: Log in to Docker hub
+      run: echo ${{ secrets.DOCKER_HUB_PASS }} | docker login -u ${{ secrets.DOCKER_HUB_USER }} --password-stdin
+
+    - name: Build image
+      run: cd web-chat && docker build -t duyphuong205/chat-spring:${{ vars.VERSION_NUMBER }} .
+
+    - name: Push image
+      run: cd web-chat && docker push duyphuong205/chat-spring:${{ vars.VERSION_NUMBER }}
+
+    - name: Increment version number and update repository variable
+      run: |
+        OLD_VERSION=$(echo ${{ vars.VERSION_NUMBER }} | cut -d "." -f 2)
+        NEW_VERSION=$((OLD_VERSION + 1))
+        VERSION_NUMBER=$(echo ${{ vars.VERSION_NUMBER }} | cut -d "." -f 1).${NEW_VERSION}
+        echo "VERSION_NUMBER = $VERSION_NUMBER"
+        echo $VERSION_NUMBER | gh variable set VERSION_NUMBER --body "$VERSION_NUMBER"
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
